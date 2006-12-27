@@ -1,21 +1,19 @@
 use strict;
 use warnings;
-use ExtUtils::MakeMaker;
+use inc::Module::Install;
 
-WriteMakefile(
-    NAME                => 'Geography::JapanesePrefectures::Walker',
-    AUTHOR              => 'Atsushi Kobayashi <nekokak@gmail.com>',
-    VERSION_FROM        => 'lib/Geography/JapanesePrefectures/Walker.pm',
-    ABSTRACT_FROM       => 'lib/Geography/JapanesePrefectures/Walker.pm',
-    PL_FILES            => {},
-    PREREQ_PM => {
-        'Test::More' => 0,
-        'Test::Class' => 0,
-        'Geography::JapanesePrefectures' => 0,
-        'Scalar::Util' => 0,
-        'Encode' => 0,
-        'List::MoreUtils' => 0,
-    },
-    dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
-    clean               => { FILES => 'Geography-JapanesePrefectures-Walker-*' },
-);
+name     'Geography-JapanesePrefectures-Walker';
+all_from 'lib/Geography/JapanesePrefectures/Walker.pm';
+
+requires 'Scalar::Util';
+requires 'Test::More';
+requires 'Test::Class';
+requires 'Geography::JapanesePrefectures';
+requires 'Encode';
+requires 'List::MoreUtils';
+requires 'Data::Visitor::Callback';
+
+use_test_base;
+auto_install;
+WriteAll;
+

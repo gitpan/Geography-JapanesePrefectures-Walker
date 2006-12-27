@@ -3,78 +3,40 @@ use strict;
 use warnings;
 use Carp;
 use Scalar::Util qw(blessed);
-use UNIVERSAL;
 use Encode;
 use List::MoreUtils qw/uniq firstval/;
 use Geography::JapanesePrefectures;
+use Data::Visitor::Callback;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 sub new {
     my $class = shift;
-    my $encoding = shift || 'utf8';
     my $param = {
-        encoding => $encoding,
+        encoding => shift || 'utf8',
     };
-    bless $param, $class;
+    
+    my $self = bless $param, $class;
+    $self->{_geo_data} = $self->_encode_prefectures_infos;
+    $self;
 }
 
-*isa = \&UNIVERSAL::isa;
-
-sub prefectures_infos {
+sub _encode_prefectures_infos {
     my $self = shift;
-    $self->encode_to(Geography::JapanesePrefectures->prefectures_infos);
-}
 
-sub encode_to {
-    my($self, $stuff) = @_;
-    $self->apply(
-        sub {
-            my $val = shift;
-            Encode::from_to($val,'utf-8',$self->{encoding});
-            $val;
+    my $prefs = Geography::JapanesePrefectures->prefectures_infos;
+
+    my $visitor = Data::Visitor::Callback->new(                                                                                                    
+        plain_value => sub {
+            Encode::from_to($_, 'utf8', $self->{encoding}, 1);
         }
-    )->($stuff);
+    ); 
+    $visitor->visit($prefs);
+
+    return $prefs;
 }
 
-sub apply { ## no critic
-    my $self = shift;
-    my $code = shift;
-
-    my $keyapp = sub { $code->(shift) };
-
-    my $curry; # recursive so can't init
-    $curry = sub {
-        my @retval;
-        for my $arg (@_){
-            my $class = ref $arg;
-            croak 'blessed reference forbidden'
-                if  !$self->{apply_blessed} and blessed $arg;
-                my $val =
-                    !$class ?
-                        $code->($arg) :
-                    isa($arg, 'ARRAY') ?
-                        [ $curry->(@$arg) ] :
-                    isa($arg, 'HASH') ?
-                        {
-                        map { $keyapp->($_)
-                                => $curry->($arg->{$_}) } keys %$arg
-                        } :
-                    isa($arg, 'SCALAR') ?
-                        \do{ $curry->($$arg) } :
-                    isa($arg, 'REF') && $self->{apply_ref} ?
-                        \do{ $curry->($$arg) } :
-                    isa($arg, 'GLOB')  ?
-                        *{ $curry->(*$arg) } :
-                    isa($arg, 'CODE') && $self->{apply_code} ?
-                        $code->($arg) :
-                    croak "I don't know how to apply to $class" ;
-                bless $val, $class if blessed $arg;
-                push @retval, $val;
-        }
-        return wantarray ? @retval : $retval[0];
-    };
-}
+sub prefectures_infos { shift->{_geo_data} }
 
 sub prefectures {
     my $self = shift;
@@ -83,26 +45,26 @@ sub prefectures {
                     id     => $_->{id} ,
                     name   => $_->{name},
                     region => $_->{region},
-                   } } @{$self->prefectures_infos} ];
+                   } } @{ $self->prefectures_infos } ];
 }
 
 sub prefectures_name_for_id {
     my ($self, $id) = @_;
 
-    my $pref = firstval { $_->{id} } grep { $_->{id} eq $id } @{$self->prefectures_infos};
+    my $pref = firstval { $_->{id} } grep { $_->{id} eq $id } @{ $self->prefectures_infos };
     return $pref->{name};
 }
 
 sub prefectures_name {
     my $self = shift; 
 
-    return map { $_->{name} } @{$self->prefectures_infos};
+    return map { $_->{name} } @{ $self->prefectures_infos };
 }
 
 sub prefectures_regions {
     my $self = shift;
 
-    return uniq map { $_->{region} } @{$self->prefectures_infos};
+    return uniq map { $_->{region} } @{ $self->prefectures_infos };
 }
 
 sub prefectures_name_for_region {
@@ -110,23 +72,19 @@ sub prefectures_name_for_region {
 
     return map { $_->{name} }
            grep { $_->{region} eq $region }
-           @{$self->prefectures_infos};
+           @{ $self->prefectures_infos };
 }
 
 sub prefectures_id_for_name {
     my ($self, $name) = @_;
 
-    my $pref = firstval { $_->{id} } grep { $_->{name} eq $name } @{$self->prefectures_infos};
+    my $pref = firstval { $_->{id} } grep { $_->{name} eq $name } @{ $self->prefectures_infos };
     return $pref->{id};
 }
 
 =head1 NAME
 
 Geography::JapanesePrefectures::Walker - Geography::JapanesePrefectures's wrappers.
-
-=head1 VERSION
-
-This documentation refers to Geography::JapanesePrefectures::Walker version 0.01
 
 =head1 SYNOPSIS
 
@@ -142,19 +100,14 @@ in your script:
 
 create Geography::JapanesePrefectures::Walker's object.
 
-=head2 encode_to
+=head2 _encode_prefectures_infos
 
-encode utf8 to your charset.
-
-=head2 apply
-
-walker method...
-see Plagger::Walker.
+privete method.
+this method encode all data.
 
 =head2 prefectures_infos
 
 This method get Geography::JapanesePrefectures's all data.
-But may be you don't use this method.
 
 =head2 prefectures
 
